@@ -59,6 +59,13 @@ async fn get_grocery_list(store: Store) -> Result<impl warp::Reply, warp::Reject
     Ok(warp::reply::json(&*result))
 }
 
+async fn show_limited_message() -> Result<impl warp::Reply, warp::Rejection> {
+    Ok(warp::reply::html("Limited! don't over use me"))
+}
+async fn show_unlimited_message() -> Result<impl warp::Reply, warp::Rejection> {
+    Ok(warp::reply::html("Unlimited! Let's Go!"))
+}
+
 fn delete_json() -> impl Filter<Extract = (Id,), Error = warp::Rejection> + Clone {
     // When accepting a body, we want a JSON body
     // (and to reject huge payloads)...
@@ -73,7 +80,6 @@ fn post_json() -> impl Filter<Extract = (Item,), Error = warp::Rejection> + Clon
 
 #[tokio::main]
 async fn main() {
-    // GET /hello/warp => 200 OK with body "Hello, warp!"
     let store = Store::new();
     let store_filter = warp::any().map(move || store.clone());
 
@@ -108,7 +114,21 @@ async fn main() {
         .and(store_filter.clone())
         .and_then(update_grocery_list);
 
-    let routes = add_items.or(get_items).or(delete_item).or(update_item);
+    let unlimited = warp::get()
+        .and(warp::path("unlimited"))
+        .and(warp::path::end())
+        .and_then(show_unlimited_message);
+    let limited = warp::get()
+        .and(warp::path("limited"))
+        .and(warp::path::end())
+        .and_then(show_limited_message);
+
+    let routes = add_items
+        .or(get_items)
+        .or(delete_item)
+        .or(update_item)
+        .or(unlimited)
+        .or(limited);
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
