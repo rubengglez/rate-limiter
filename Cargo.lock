@@ -839,7 +839,6 @@ name = "rate_limiter"
 version = "0.1.0"
 dependencies = [
  "chrono",
- "once_cell",
  "parking_lot",
  "serde",
  "tokio",
