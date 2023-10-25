@@ -1,4 +1,5 @@
-use domain::{Limiter, Stoppable};
+use domain::Limiter;
+use sliding_window_counter::SlidingWindowCounter;
 use sliding_window_log::SlidingWindowLog;
 use std::{net::SocketAddr, sync::Arc};
 use token_bucket::TokenBucket;
@@ -7,6 +8,7 @@ use warp::{http::StatusCode, reply, Filter};
 use window_counter::WindowLimiter;
 
 pub mod domain;
+pub mod sliding_window_counter;
 pub mod sliding_window_log;
 pub mod token_bucket;
 pub mod window_counter;
@@ -48,10 +50,10 @@ type SingletonLimiter = Arc<Mutex<dyn Limiter + Send>>;
 
 #[tokio::main]
 async fn main() {
-    // tokio::task::spawn(add_tokens());
-
     let window_limiter: SingletonLimiter = Arc::new(Mutex::new(WindowLimiter::new()));
     let sliging_window_log: SingletonLimiter = Arc::new(Mutex::new(SlidingWindowLog::new()));
+    let sliding_window_counter: SingletonLimiter =
+        Arc::new(Mutex::new(SlidingWindowCounter::new()));
     let mut plain_token_bucket = TokenBucket::new();
     plain_token_bucket.start();
     let token_limiter: SingletonLimiter = Arc::new(Mutex::new(plain_token_bucket));
@@ -82,10 +84,18 @@ async fn main() {
         .and(with_limiter(sliging_window_log))
         .and_then(show_limited_message_with_limiter);
 
+    let limited_sliding_window_counter = warp::get()
+        .and(warp::path("limited-sliding-window-counter"))
+        .and(warp::path::end())
+        .and(warp::addr::remote())
+        .and(with_limiter(sliding_window_counter))
+        .and_then(show_limited_message_with_limiter);
+
     let routes = unlimited
         .or(limited_window_counter)
         .or(limited_sliding_window_log)
-        .or(limited_with_token_bucket);
+        .or(limited_with_token_bucket)
+        .or(limited_sliding_window_counter);
 
     warp::serve(routes).run(([127, 0, 0, 1], 3030)).await;
 }
